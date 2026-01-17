@@ -184,6 +184,10 @@
 </head>
 <body>
 
+    <audio id="silentAudio" loop>
+        <source src="https://www.soundjay.com/buttons/beep-01a.mp3" type="audio/mpeg">
+    </audio>
+
     <div class="video-wrapper" id="videoWrapper">
         <div class="placeholder-text" id="placeholder">
             Here Official MV Show<br>
@@ -210,6 +214,8 @@
     <script>
         var player;
         var historyData = JSON.parse(localStorage.getItem('mvHistory')) || [];
+        var silentAudio = document.getElementById('silentAudio');
+        silentAudio.volume = 0; // အသံမထွက်အောင် လုပ်ထားသည်
 
         // 1. YouTube API Setup
         var tag = document.createElement('script');
@@ -224,7 +230,8 @@
                 videoId: '', 
                 playerVars: {
                     'autoplay': 0,
-                    'playsinline': 1 // iOS မှာ screen မပိတ်အောင် အကူအညီပေးသည်
+                    'playsinline': 1,
+                    'enablejsapi': 1
                 },
                 events: {
                     'onReady': onPlayerReady,
@@ -238,31 +245,29 @@
             document.getElementById('placeholder').style.display = 'none';
         }
 
-        // --- BACKGROUND ACTIVE & PERSISTENT PLAY ---
+        // --- BACKGROUND ACTIVE & PERSISTENT PLAY (FIXED) ---
         function updateMediaSession(id) {
             if ('mediaSession' in navigator) {
                 navigator.mediaSession.metadata = new MediaMetadata({
                     title: 'Support My Idol MV',
-                    artist: 'Continuous Playing Mode',
+                    artist: 'Background Mode Active',
                     artwork: [
                         { src: `https://img.youtube.com/vi/${id}/mqdefault.jpg`, sizes: '96x96', type: 'image/jpg' }
                     ]
                 });
 
-                navigator.mediaSession.setActionHandler('play', function() { player.playVideo(); });
-                navigator.mediaSession.setActionHandler('pause', function() { player.pauseVideo(); });
+                navigator.mediaSession.setActionHandler('play', function() { player.playVideo(); silentAudio.play(); });
+                navigator.mediaSession.setActionHandler('pause', function() { player.pauseVideo(); silentAudio.pause(); });
             }
         }
 
-        // Screen ပိတ်လိုက်ရင် ဖြစ်ဖြစ်၊ တခြား App ထွက်လိုက်ရင်ဖြစ်ဖြစ် YouTube က ရပ်ပစ်တာကို ပြန် Play ပေးဖို့
+        // Screen ပြောင်းလဲမှုကို စောင့်ကြည့်ပြီး Error မတက်အောင် ထိန်းညှိခြင်း
         document.addEventListener('visibilitychange', function() {
             if (document.hidden) {
-                // Screen ပိတ်သွားချိန်မှာ YouTube ရပ်သွားတတ်လို့ ၀.၅ စက္ကန့်အကြာမှာ ပြန် Play ခိုင်းတာပါ
-                setTimeout(function() {
-                    if (player && player.getPlayerState() !== YT.PlayerState.PLAYING) {
-                        player.playVideo();
-                    }
-                }, 500);
+                // Screen ပိတ်ချိန်မှာ Player ကို Force Play ပြန်လုပ်ပေးခြင်း
+                if (player && player.getPlayerState() === YT.PlayerState.PLAYING) {
+                    silentAudio.play(); // Browser ကို Wake lock ပေးလိုက်ခြင်း
+                }
             }
         });
 
@@ -270,11 +275,15 @@
             if (event.data == YT.PlayerState.PLAYING) {
                 var currentId = player.getVideoData().video_id;
                 updateMediaSession(currentId);
+                silentAudio.play(); // သီချင်းလာရင် အသံတိတ်ဖိုင်လေးပါ တွဲဖွင့်ထားမယ်
             }
             
-            // YouTube က Screen ပိတ်လို့ Pause လုပ်လိုက်ရင် Notification ကနေ ပြန် Play ခိုင်းနိုင်ဖို့
+            // Loop ပတ်ပြီး Play/Pause ဖြစ်နေတဲ့ Error ကို ဒီနေရာမှာ ဖြေရှင်းထားပါတယ်
             if (event.data == YT.PlayerState.PAUSED && document.hidden) {
-                player.playVideo(); 
+                // အကယ်၍ Screen ပိတ်လို့ Pause ဖြစ်သွားရင် ၀.၈ စက္ကန့်နေမှ ပြန်ဖွင့်ခိုင်းမယ် (Error ကာကွယ်ရန်)
+                setTimeout(function() {
+                    if (document.hidden) player.playVideo();
+                }, 800);
             }
         }
 
@@ -304,6 +313,7 @@
 
         function playById(videoId) {
             if(player && player.loadVideoById) {
+                silentAudio.play(); // User Gesture အဖြစ် အသံကိုပါ တွဲနှိပ်ပေးခြင်း
                 player.loadVideoById(videoId);
                 document.getElementById('placeholder').style.display = 'none';
                 updateMediaSession(videoId);
