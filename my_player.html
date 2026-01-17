@@ -184,7 +184,7 @@
 </head>
 <body>
 
-    <div class="video-wrapper">
+    <div class="video-wrapper" id="videoWrapper">
         <div class="placeholder-text" id="placeholder">
             Here Official MV Show<br>
             <span style="font-size: 0.8rem; color: #777;">(Video will load here)</span>
@@ -221,30 +221,31 @@
             player = new YT.Player('youtube-player', {
                 height: '100%',
                 width: '100%',
-                videoId: '', // Initially empty
+                videoId: '', 
+                playerVars: {
+                    'autoplay': 0,
+                    'playsinline': 1 // iOS မှာ screen မပိတ်အောင် အကူအညီပေးသည်
+                },
                 events: {
                     'onReady': onPlayerReady,
                     'onStateChange': onPlayerStateChange
                 }
             });
-            renderHistory(); // Load history when page opens
+            renderHistory(); 
         }
 
         function onPlayerReady(event) {
-            // Player is ready
             document.getElementById('placeholder').style.display = 'none';
         }
 
-        // --- BACKGROUND ACTIVE ဖြစ်စေရန် ထည့်သွင်းထားသော အပိုင်း ---
+        // --- BACKGROUND ACTIVE & PERSISTENT PLAY ---
         function updateMediaSession(id) {
             if ('mediaSession' in navigator) {
                 navigator.mediaSession.metadata = new MediaMetadata({
-                    title: 'Playing from YouTube',
-                    artist: 'My Idol MV',
-                    album: 'Background Mode Active',
+                    title: 'Support My Idol MV',
+                    artist: 'Continuous Playing Mode',
                     artwork: [
-                        { src: `https://img.youtube.com/vi/${id}/mqdefault.jpg`, sizes: '96x96', type: 'image/jpg' },
-                        { src: `https://img.youtube.com/vi/${id}/hqdefault.jpg`, sizes: '512x512', type: 'image/jpg' },
+                        { src: `https://img.youtube.com/vi/${id}/mqdefault.jpg`, sizes: '96x96', type: 'image/jpg' }
                     ]
                 });
 
@@ -253,16 +254,31 @@
             }
         }
 
+        // Screen ပိတ်လိုက်ရင် ဖြစ်ဖြစ်၊ တခြား App ထွက်လိုက်ရင်ဖြစ်ဖြစ် YouTube က ရပ်ပစ်တာကို ပြန် Play ပေးဖို့
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                // Screen ပိတ်သွားချိန်မှာ YouTube ရပ်သွားတတ်လို့ ၀.၅ စက္ကန့်အကြာမှာ ပြန် Play ခိုင်းတာပါ
+                setTimeout(function() {
+                    if (player && player.getPlayerState() !== YT.PlayerState.PLAYING) {
+                        player.playVideo();
+                    }
+                }, 500);
+            }
+        });
+
         function onPlayerStateChange(event) {
-            // Video စဖွင့်ပြီဆိုတာနဲ့ Background Play အတွက် Session ကို ချိတ်ပေးလိုက်သည်
             if (event.data == YT.PlayerState.PLAYING) {
                 var currentId = player.getVideoData().video_id;
                 updateMediaSession(currentId);
             }
+            
+            // YouTube က Screen ပိတ်လို့ Pause လုပ်လိုက်ရင် Notification ကနေ ပြန် Play ခိုင်းနိုင်ဖို့
+            if (event.data == YT.PlayerState.PAUSED && document.hidden) {
+                player.playVideo(); 
+            }
         }
-        // ----------------------------------------------------
 
-        // 2. Link ကနေ Video ID ဆွဲထုတ်ခြင်း (Magic Function)
+        // 2. Link ကနေ Video ID ဆွဲထုတ်ခြင်း
         function extractVideoID(url) {
             var regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
             var match = url.match(regExp);
@@ -273,7 +289,6 @@
             if(e.key === 'Enter') loadVideoFromInput();
         }
 
-        // 3. Play ခလုတ်နှိပ်ရင် အလုပ်လုပ်မည့်အပိုင်း
         function loadVideoFromInput() {
             var inputVal = document.getElementById('youtubeLink').value;
             var videoId = extractVideoID(inputVal);
@@ -281,34 +296,26 @@
             if (videoId) {
                 playById(videoId);
                 addToHistory(videoId);
-                document.getElementById('youtubeLink').value = ''; // Clear input
+                document.getElementById('youtubeLink').value = ''; 
             } else {
                 alert("YouTube Link အမှန်ထည့်ပေးပါဗျ။");
             }
         }
 
-        // Video ID အလိုက်ဖွင့်ခြင်း
         function playById(videoId) {
             if(player && player.loadVideoById) {
                 player.loadVideoById(videoId);
                 document.getElementById('placeholder').style.display = 'none';
-                updateMediaSession(videoId); // Update for background play
+                updateMediaSession(videoId);
             }
         }
 
-        // 4. History System (LocalStorage)
+        // 4. History System
         function addToHistory(videoId) {
-            // ထပ်နေရင် အရင်ဖျက်မယ် (To bring to top)
             historyData = historyData.filter(item => item.id !== videoId);
-            
-            var newItem = {
-                id: videoId,
-                date: new Date().toLocaleString()
-            };
-            
-            historyData.unshift(newItem); // Add to top
-            if(historyData.length > 20) historyData.pop(); // Keep only last 20
-            
+            var newItem = { id: videoId, date: new Date().toLocaleString() };
+            historyData.unshift(newItem);
+            if(historyData.length > 20) historyData.pop();
             localStorage.setItem('mvHistory', JSON.stringify(historyData));
             renderHistory();
         }
@@ -316,20 +323,15 @@
         function renderHistory() {
             var list = document.getElementById('historyList');
             list.innerHTML = '';
-
             if (historyData.length === 0) {
                 list.innerHTML = '<li style="color: #555; text-align: center; padding: 20px;">No history yet</li>';
                 return;
             }
-
             historyData.forEach(item => {
                 var li = document.createElement('li');
                 li.className = 'history-item';
-                li.onclick = function() { playById(item.id); }; // Click list to play
-
-                // YouTube Thumbnail ယူခြင်း
+                li.onclick = function() { playById(item.id); };
                 var thumbUrl = `https://img.youtube.com/vi/${item.id}/default.jpg`;
-
                 li.innerHTML = `
                     <img src="${thumbUrl}" class="history-thumb" alt="thumb">
                     <div class="history-info">
