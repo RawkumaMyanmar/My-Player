@@ -222,11 +222,6 @@
                 height: '100%',
                 width: '100%',
                 videoId: '', // Initially empty
-                playerVars: {
-                    'autoplay': 0,
-                    'controls': 1,
-                    'playsinline': 1 // iOS မှာ Background play ရဖို့ အရေးကြီးတယ်
-                },
                 events: {
                     'onReady': onPlayerReady,
                     'onStateChange': onPlayerStateChange
@@ -236,17 +231,20 @@
         }
 
         function onPlayerReady(event) {
+            // Player is ready
             document.getElementById('placeholder').style.display = 'none';
         }
 
-        // Background Play အတွက် Lock Screen မှာ ထိန်းချုပ်ဖို့
-        function setupMediaSession() {
+        // --- BACKGROUND ACTIVE ဖြစ်စေရန် ထည့်သွင်းထားသော အပိုင်း ---
+        function updateMediaSession(id) {
             if ('mediaSession' in navigator) {
                 navigator.mediaSession.metadata = new MediaMetadata({
-                    title: 'Supporting My Idol',
-                    artist: 'YouTube Premium Mode',
+                    title: 'Playing from YouTube',
+                    artist: 'My Idol MV',
+                    album: 'Background Mode Active',
                     artwork: [
-                        { src: 'https://cdn-icons-png.flaticon.com/512/3069/3069186.png', sizes: '512x512', type: 'image/png' }
+                        { src: `https://img.youtube.com/vi/${id}/mqdefault.jpg`, sizes: '96x96', type: 'image/jpg' },
+                        { src: `https://img.youtube.com/vi/${id}/hqdefault.jpg`, sizes: '512x512', type: 'image/jpg' },
                     ]
                 });
 
@@ -256,10 +254,13 @@
         }
 
         function onPlayerStateChange(event) {
+            // Video စဖွင့်ပြီဆိုတာနဲ့ Background Play အတွက် Session ကို ချိတ်ပေးလိုက်သည်
             if (event.data == YT.PlayerState.PLAYING) {
-                setupMediaSession();
+                var currentId = player.getVideoData().video_id;
+                updateMediaSession(currentId);
             }
         }
+        // ----------------------------------------------------
 
         // 2. Link ကနေ Video ID ဆွဲထုတ်ခြင်း (Magic Function)
         function extractVideoID(url) {
@@ -291,11 +292,13 @@
             if(player && player.loadVideoById) {
                 player.loadVideoById(videoId);
                 document.getElementById('placeholder').style.display = 'none';
+                updateMediaSession(videoId); // Update for background play
             }
         }
 
         // 4. History System (LocalStorage)
         function addToHistory(videoId) {
+            // ထပ်နေရင် အရင်ဖျက်မယ် (To bring to top)
             historyData = historyData.filter(item => item.id !== videoId);
             
             var newItem = {
@@ -324,6 +327,7 @@
                 li.className = 'history-item';
                 li.onclick = function() { playById(item.id); }; // Click list to play
 
+                // YouTube Thumbnail ယူခြင်း
                 var thumbUrl = `https://img.youtube.com/vi/${item.id}/default.jpg`;
 
                 li.innerHTML = `
@@ -347,4 +351,3 @@
     </script>
 </body>
 </html>
- 
