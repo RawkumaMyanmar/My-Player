@@ -13,7 +13,6 @@
             --text-main: #ffffff;
             --text-sub: #b0b0b0;
             --accent: #03dac6;
-            --danger: #ff5252;
         }
 
         body {
@@ -26,34 +25,6 @@
             flex-direction: column;
             align-items: center;
             min-height: 100vh;
-        }
-
-        /* Login Status Bar */
-        .login-checker {
-            width: 100%;
-            max-width: 600px;
-            background-color: #2a1b3d;
-            border: 1px dashed var(--primary);
-            padding: 12px;
-            border-radius: 10px;
-            margin-bottom: 15px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .status-badge {
-            font-size: 13px;
-            padding: 4px 10px;
-            border-radius: 20px;
-            background: var(--danger);
-            color: white;
-        }
-
-        .status-badge.logged-in {
-            background: var(--accent);
-            color: #000;
         }
 
         /* 1. Official MV Show Area (The Monitor) */
@@ -245,14 +216,6 @@
         <source src="https://www.soundjay.com/buttons/beep-01a.mp3" type="audio/mpeg">
     </audio>
 
-    <div class="login-checker">
-        <div style="font-size: 14px; text-align: center;">
-            <span id="loginStatusBadge" class="status-badge">Login Not Verified</span>
-            <p style="margin: 5px 0 0 0; font-size: 12px; color: var(--text-sub);">Idol ကို Support ရန် YouTube Account ဝင်ထားရပါမည်။</p>
-        </div>
-        <button class="toggle-btn" style="background: var(--primary); color: #000;" onclick="checkYouTubeLogin()">Check & Login to YouTube</button>
-    </div>
-
     <div class="video-wrapper" id="videoWrapper">
         <div class="placeholder-text" id="placeholder">
             Here Official MV Show<br>
@@ -287,21 +250,7 @@
         var silentAudio = document.getElementById('silentAudio');
         var isLooping = false;
         var isPlaylistMode = true;
-        var isLoggedIn = false; // YouTube Login Status Track
         silentAudio.volume = 0; 
-
-        // Login Check ပြုလုပ်ခြင်း (Safety First)
-        function checkYouTubeLogin() {
-            // YouTube Account Page ကို New Tab မှာ ဖွင့်ပေးခြင်းဖြင့် User ကို Login ဝင်ခိုင်းခြင်း
-            window.open('https://accounts.google.com/ServiceLogin?service=youtube', '_blank', 'width=500,height=600');
-            
-            // Login ဝင်ပြီးပြီဟု ယူဆချက်ဖြင့် Status ပြောင်းပေးခြင်း (User ကို သတိပေးပြီးသားဖြစ်စေရန်)
-            isLoggedIn = true;
-            var badge = document.getElementById('loginStatusBadge');
-            badge.innerText = "Login Verified (Idol Support Mode)";
-            badge.className = "status-badge logged-in";
-            alert("Idol ကို Support ဖို့ YouTube Login ဝင်ထားတာ သေချာပါစေ။ အခု နားထောင်လို့ ရပါပြီဗျာ။");
-        }
 
         // 1. YouTube API Setup
         var tag = document.createElement('script');
@@ -353,6 +302,7 @@
             }
         });
 
+        // Loop Toggle လုပ်ခြင်း
         function toggleLoop() {
             isLooping = !isLooping;
             var btn = document.getElementById('loopBtn');
@@ -360,6 +310,7 @@
             btn.classList.toggle('active');
         }
 
+        // Playlist Toggle လုပ်ခြင်း
         function togglePlaylist() {
             isPlaylistMode = !isPlaylistMode;
             var btn = document.getElementById('playlistBtn');
@@ -374,11 +325,12 @@
                 silentAudio.play();
             }
             
+            // သီချင်းတစ်ပုဒ် ပြီးသွားတဲ့အခါ (Ended)
             if (event.data == YT.PlayerState.ENDED) {
                 if (isLooping) {
-                    player.playVideo();
+                    player.playVideo(); // Repeat ON ဆိုရင် ပြန်ဖွင့်မယ်
                 } else if (isPlaylistMode && historyData.length > 1) {
-                    playNextInHistory();
+                    playNextInHistory(); // Playlist Mode ဆိုရင် နောက်တစ်ပုဒ် ဆက်ဖွင့်မယ်
                 }
             }
 
@@ -389,9 +341,12 @@
             }
         }
 
+        // History ထဲက နောက်တစ်ပုဒ်ကို ရှာဖွင့်ခြင်း
         function playNextInHistory() {
             var currentId = player.getVideoData().video_id;
             var currentIndex = historyData.findIndex(item => item.id === currentId);
+            
+            // နောက်တစ်ပုဒ်ရှိရင် ဖွင့်မယ်၊ မရှိရင် အစကပြန်ဖွင့်မယ်
             var nextIndex = (currentIndex + 1) % historyData.length;
             playById(historyData[nextIndex].id);
         }
@@ -407,12 +362,6 @@
         }
 
         function loadVideoFromInput() {
-            // Login ဝင်မဝင် စစ်ဆေးခြင်း
-            if (!isLoggedIn) {
-                alert("Idol ကို Support ဖို့အတွက် အပေါ်က Check ခလုတ်ကိုနှိပ်ပြီး YouTube Login အရင်ဝင်ပေးပါဗျာ။");
-                return;
-            }
-
             var inputVal = document.getElementById('youtubeLink').value;
             var videoId = extractVideoID(inputVal);
             if (videoId) {
@@ -425,10 +374,6 @@
         }
 
         function playById(videoId) {
-            if (!isLoggedIn) {
-                alert("YouTube Login အရင်ဝင်ပေးပါဗျာ။");
-                return;
-            }
             if(player && player.loadVideoById) {
                 silentAudio.play();
                 player.loadVideoById(videoId);
