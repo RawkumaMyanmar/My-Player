@@ -68,7 +68,7 @@
             max-width: 600px;
             display: flex;
             gap: 10px;
-            margin-bottom: 30px;
+            margin-bottom: 15px;
         }
 
         input[type="text"] {
@@ -101,6 +101,34 @@
 
         button.play-btn:active {
             transform: scale(0.95);
+        }
+
+        /* Playlist & Loop Controls */
+        .extra-controls {
+            width: 100%;
+            max-width: 600px;
+            display: flex;
+            justify-content: flex-start;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .toggle-btn {
+            background-color: #333;
+            color: var(--text-sub);
+            border: 1px solid #444;
+            padding: 8px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: 0.3s;
+        }
+
+        .toggle-btn.active {
+            background-color: var(--accent);
+            color: #000;
+            border-color: var(--accent);
+            font-weight: bold;
         }
 
         /* 3. History Section */
@@ -201,9 +229,14 @@
         <button class="play-btn" onclick="loadVideoFromInput()">PLAY</button>
     </div>
 
+    <div class="extra-controls">
+        <button id="loopBtn" class="toggle-btn" onclick="toggleLoop()">Repeat: OFF</button>
+        <button id="playlistBtn" class="toggle-btn active" onclick="togglePlaylist()">Auto-Next (Playlist): ON</button>
+    </div>
+
     <div class="history-section">
         <div class="history-header">
-            <h3>History</h3>
+            <h3>History / Playlist</h3>
             <button class="clear-btn" onclick="clearHistory()">Clear All</button>
         </div>
         <ul class="history-list" id="historyList">
@@ -215,7 +248,9 @@
         var player;
         var historyData = JSON.parse(localStorage.getItem('mvHistory')) || [];
         var silentAudio = document.getElementById('silentAudio');
-        silentAudio.volume = 0; // အသံမထွက်အောင် လုပ်ထားသည်
+        var isLooping = false;
+        var isPlaylistMode = true;
+        silentAudio.volume = 0; 
 
         // 1. YouTube API Setup
         var tag = document.createElement('script');
@@ -245,7 +280,6 @@
             document.getElementById('placeholder').style.display = 'none';
         }
 
-        // --- BACKGROUND ACTIVE & PERSISTENT PLAY (FIXED) ---
         function updateMediaSession(id) {
             if ('mediaSession' in navigator) {
                 navigator.mediaSession.metadata = new MediaMetadata({
@@ -255,39 +289,68 @@
                         { src: `https://img.youtube.com/vi/${id}/mqdefault.jpg`, sizes: '96x96', type: 'image/jpg' }
                     ]
                 });
-
                 navigator.mediaSession.setActionHandler('play', function() { player.playVideo(); silentAudio.play(); });
                 navigator.mediaSession.setActionHandler('pause', function() { player.pauseVideo(); silentAudio.pause(); });
             }
         }
 
-        // Screen ပြောင်းလဲမှုကို စောင့်ကြည့်ပြီး Error မတက်အောင် ထိန်းညှိခြင်း
         document.addEventListener('visibilitychange', function() {
             if (document.hidden) {
-                // Screen ပိတ်ချိန်မှာ Player ကို Force Play ပြန်လုပ်ပေးခြင်း
                 if (player && player.getPlayerState() === YT.PlayerState.PLAYING) {
-                    silentAudio.play(); // Browser ကို Wake lock ပေးလိုက်ခြင်း
+                    silentAudio.play();
                 }
             }
         });
+
+        // Loop Toggle လုပ်ခြင်း
+        function toggleLoop() {
+            isLooping = !isLooping;
+            var btn = document.getElementById('loopBtn');
+            btn.innerText = isLooping ? "Repeat: ON" : "Repeat: OFF";
+            btn.classList.toggle('active');
+        }
+
+        // Playlist Toggle လုပ်ခြင်း
+        function togglePlaylist() {
+            isPlaylistMode = !isPlaylistMode;
+            var btn = document.getElementById('playlistBtn');
+            btn.innerText = isPlaylistMode ? "Auto-Next (Playlist): ON" : "Auto-Next (Playlist): OFF";
+            btn.classList.toggle('active');
+        }
 
         function onPlayerStateChange(event) {
             if (event.data == YT.PlayerState.PLAYING) {
                 var currentId = player.getVideoData().video_id;
                 updateMediaSession(currentId);
-                silentAudio.play(); // သီချင်းလာရင် အသံတိတ်ဖိုင်လေးပါ တွဲဖွင့်ထားမယ်
+                silentAudio.play();
             }
             
-            // Loop ပတ်ပြီး Play/Pause ဖြစ်နေတဲ့ Error ကို ဒီနေရာမှာ ဖြေရှင်းထားပါတယ်
+            // သီချင်းတစ်ပုဒ် ပြီးသွားတဲ့အခါ (Ended)
+            if (event.data == YT.PlayerState.ENDED) {
+                if (isLooping) {
+                    player.playVideo(); // Repeat ON ဆိုရင် ပြန်ဖွင့်မယ်
+                } else if (isPlaylistMode && historyData.length > 1) {
+                    playNextInHistory(); // Playlist Mode ဆိုရင် နောက်တစ်ပုဒ် ဆက်ဖွင့်မယ်
+                }
+            }
+
             if (event.data == YT.PlayerState.PAUSED && document.hidden) {
-                // အကယ်၍ Screen ပိတ်လို့ Pause ဖြစ်သွားရင် ၀.၈ စက္ကန့်နေမှ ပြန်ဖွင့်ခိုင်းမယ် (Error ကာကွယ်ရန်)
                 setTimeout(function() {
                     if (document.hidden) player.playVideo();
                 }, 800);
             }
         }
 
-        // 2. Link ကနေ Video ID ဆွဲထုတ်ခြင်း
+        // History ထဲက နောက်တစ်ပုဒ်ကို ရှာဖွင့်ခြင်း
+        function playNextInHistory() {
+            var currentId = player.getVideoData().video_id;
+            var currentIndex = historyData.findIndex(item => item.id === currentId);
+            
+            // နောက်တစ်ပုဒ်ရှိရင် ဖွင့်မယ်၊ မရှိရင် အစကပြန်ဖွင့်မယ်
+            var nextIndex = (currentIndex + 1) % historyData.length;
+            playById(historyData[nextIndex].id);
+        }
+
         function extractVideoID(url) {
             var regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
             var match = url.match(regExp);
@@ -301,10 +364,9 @@
         function loadVideoFromInput() {
             var inputVal = document.getElementById('youtubeLink').value;
             var videoId = extractVideoID(inputVal);
-
             if (videoId) {
-                playById(videoId);
                 addToHistory(videoId);
+                playById(videoId);
                 document.getElementById('youtubeLink').value = ''; 
             } else {
                 alert("YouTube Link အမှန်ထည့်ပေးပါဗျ။");
@@ -313,14 +375,13 @@
 
         function playById(videoId) {
             if(player && player.loadVideoById) {
-                silentAudio.play(); // User Gesture အဖြစ် အသံကိုပါ တွဲနှိပ်ပေးခြင်း
+                silentAudio.play();
                 player.loadVideoById(videoId);
                 document.getElementById('placeholder').style.display = 'none';
                 updateMediaSession(videoId);
             }
         }
 
-        // 4. History System
         function addToHistory(videoId) {
             historyData = historyData.filter(item => item.id !== videoId);
             var newItem = { id: videoId, date: new Date().toLocaleString() };
